@@ -1,0 +1,21 @@
+
+.venv/
+venv/
+env/
+
+# Caché de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+
+.vscode/
+.idea/
+.DS_Store
+
+# Archivos de prueba 
+
+floor.jpeg
+test.jpg
+photo.jpg
