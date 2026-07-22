@@ -1,4 +1,4 @@
-from flask import Flask, send_file
+from flask import Flask, send_file, render_template, request, redirect, url_for
 import paho.mqtt.client as mqtt
 import threading
 import os
@@ -46,11 +46,7 @@ threading.Thread(target=mqtt_loop, daemon=True).start()
 
 @app.route("/")
 def index():
-    return """
-    <h1>Foto bajo demanda</h1>
-    <a href="/capture">Tomar foto</a><br><br>
-    <img src="/photo" width="320">
-    """
+    return render_template("main.html")
 
 @app.route("/capture")
 def capture():
@@ -66,6 +62,9 @@ def photo():
     if os.path.exists(IMAGE_PATH):
         return send_file(IMAGE_PATH, mimetype="image/jpeg")
     return "❌ No hay imagen aún"
+@app.route("/solution")
+def solution():
+    return "<h1>aqui esta tu solucion</h1>"
 
 if __name__ == "__main__":
     app.run(debug=True)
