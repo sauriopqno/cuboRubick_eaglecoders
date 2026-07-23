@@ -49,10 +49,9 @@
       </div>
 
       <!-- Área de la Foto -->
-      <div class="mb-4 position-relative d-inline-block">
-        <img src="{{url_for('photo')}}" class="preview-img" width="320" alt="Vista previa de la foto">
-      </div>
-
+<div class="mb-4 position-relative d-inline-block">
+  <img src="{{ url_for('photo', face_id=1) }}" class="preview-img" width="320" alt="Vista previa de la foto">
+</div>
       <!-- Botones de Acción -->
       <div class="d-grid gap-2">
         <a href="{{url_for('capture')}}" class="btn btn-primary btn-lg rounded-pill fw-semibold shadow-sm">
