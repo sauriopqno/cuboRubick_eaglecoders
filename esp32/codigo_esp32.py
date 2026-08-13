@@ -1,7 +1,3 @@
-'''
-  microdot es una  mini vrsion de flask
-  https://microdot.readthedocs.io/en/latest/#
-'''
 import machine
 from machine import Pin
 import network
@@ -9,164 +5,88 @@ import time
 import camera
 from time import sleep
 from mqttsimple import MQTTClient
-
 import random
 
-
-
-sta_if=network.WLAN(network.STA_IF)
+# --- CONEXIÓN WI-FI ---
+sta_if = network.WLAN(network.STA_IF)
 if not sta_if.isconnected():
-    print ("conectando a la red")
+    print("Conectando a la red...")
     sta_if.active(True)
-    #inicia el proceso de conexion
-    sta_if.connect("LaSalleWifi","")
-    # espera conexion
-
-    while  not sta_if.isconnected():
-        time.sleep(5)
+    sta_if.connect("LaSalleWifi", "")
+    while not sta_if.isconnected():
+        time.sleep(1)
         print("Esperando Conexión...")
 
-print ("Esta Conectado: wi-fi: ",sta_if.isconnected())
-print("   La ip es: ",sta_if.ifconfig())
+print("✅ Wi-Fi Conectado. IP:", sta_if.ifconfig()[0])
 
-
-
-
-
-
-#Pin del led de flash
-led = machine.Pin(4, machine.Pin.OUT)
-
-
-
-
-    
-
-'''
-https://bhave.sh/micropython-mqtt/
-https://mpython.readthedocs.io/en/v2.2.1/library/mPython/umqtt.simple.html#
-
-ESTOS LINK SON REFERENCIA
-
-https://github.com/eclipse/paho.mqtt.python
-
-http://www.steves-internet-guide.com/into-mqtt-python-client/
-
-https://pypi.org/project/paho-mqtt/
-
-'''
-
-# se conecta a la red
-
-
-
-
-broker="test.mosquitto.org"
-port="1883"
-    
-client_id = f'python-mqtt-{random.randint(0, 1000)}'
-print("client_id: ",client_id)
-#client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION2, client_id)
-client = MQTTClient(client_id=client_id,server=broker, port=port)
+# --- CONEXIÓN MQTT ---
+broker = "test.mosquitto.org"
+port = 1883
+client_id = f'esp32-rubik-{random.randint(0, 1000)}'
+client = MQTTClient(client_id=client_id, server=broker, port=port)
 client.connect()
+print("✅ Conectado a MQTT Broker")
 
-
-TOPIC_IMAGE="cam/esp32/image"
+TOPIC_IMAGE = "cam/esp32/image"
 TOPIC_COMMAND = "cam/esp32/command"
-def on_message(topico,msg):
-    global n
-    
-    print(msg,topico)
-    if True:#msg == b'CAPTURE':
-        ######tomar fotos
-        print(1)
-        foto=1
-        while (foto<2):
-            print(2)
-            nombre = "Cap"+str(foto)+".jpg"
-            print (nombre)
-            print(3)
+
+def on_message(topico, msg):
+    print("Comando recibido:", msg)
+    if msg == b'CAPTURE':
+        print("📸 ¡Iniciando secuencia de 6 fotos para el cubo!")
+        foto = 1
+        
+        while foto <= 6:
+            nombre = f"Cap{foto}.jpg"
+            print(f"\n--- Tomando foto de la CARA {foto} ---")
+            
             try:
-                print(4)
+                # Inicializar cámara
                 camera.init(0, format=camera.JPEG, fb_location=camera.PSRAM)
-                
-                #Establece el brillo
-                camera.brightness(-1)
-                
-                #Orientacion normal
-                camera.flip(0)
-
-                #Orientación normal
-                camera.mirror (0)
-                
-                #Resolución
                 camera.framesize(camera.FRAME_XGA)
-
-                #contraste
-                camera.contrast(2)
-                
-                #saturacion
-                camera.saturation (-2)
-                       
-                #calidad
                 camera.quality(10)
                 
-                # special effects
-                camera.speffect(camera.EFFECT_NONE)
-                 
-                # white balance
-                camera.whitebalance(camera.WB_NONE)
-                
-                #Enciende flash
-                #led.value(1)
-                sleep (0.5)
-                
-                #Captura la imagen
+                # Capturar
                 img = camera.capture()
-                print ("Tamaño=",len(img))
+                print(f"Tamaño capturado: {len(img)} bytes")
+                camera.deinit()
                 
+                # Guardar en memoria local (opcional)
+                with open(nombre, "wb") as imgFile:
+                    imgFile.write(img)
                 
-                #Apaga flash
-                led.value(0)
+                # --- TRANSMITIR POR MQTT ---
+                print(f"📡 Enviando cara {foto} por MQTT...")
+                # Enviar etiqueta de inicio con el número de cara (Ej: START_1)
+                client.publish(TOPIC_IMAGE, f"START_{foto}".encode())
+                time.sleep(0.1)
+
+                CHUNK = 1024
+                for i in range(0, len(img), CHUNK):
+                    client.publish(TOPIC_IMAGE, img[i:i+CHUNK])
+                    time.sleep(0.01)
+
+                # Enviar etiqueta de fin con el número de cara (Ej: END_1)
+                client.publish(TOPIC_IMAGE, f"END_{foto}".encode())
+                print(f"✅ Cara {foto} enviada con éxito.")
                 
-                #desactivar cámara
-                camera.deinit ()
-               
-                #Guardar la imagen en el sistema de archivos
-                imgFile = open(nombre, "wb")
-                imgFile.write(img)
-                imgFile.close()
+                foto += 1
                 
-                #transmitir foto
-                foto+=1
-                
-                sleep (10)
+                if foto <= 6:
+                    print("👉 ¡MUEVE EL CUBO A LA SIGUIENTE CARA!")
+                    print("Tienes 8 segundos...")
+                    sleep(8) # Tiempo para que gires el cubo
                 
             except Exception as err:
-            
-                print ("Error= "+str (err))
-                sleep (2)
-    #############
-
-        client.publish(TOPIC_IMAGE, b"START")
-        time.sleep(0.1)
-
-        CHUNK = 1024
-        for i in range(0, len(img), CHUNK):
-            client.publish(TOPIC_IMAGE, img[i:i+CHUNK])
-            time.sleep(0.01)
-
-        client.publish(TOPIC_IMAGE, b"END")
-        n=1
-        
+                print("❌ Error en cámara/envío:", str(err))
+                sleep(2)
+                
+        print("\n🎉 ¡Las 6 caras han sido capturadas y enviadas!")
 
 client.set_callback(on_message)        
 client.subscribe(TOPIC_COMMAND)
-n=0
-while n==0:
-    
+
+print("⏳ Esperando comando 'CAPTURE' desde Flask...")
+while True:
     client.check_msg()
-    print("probando")
-    time.sleep(2)
-#client.on_message = on_message
-#client.loop_forever()
+    time.sleep(0.5)
